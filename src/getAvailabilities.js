@@ -6,7 +6,7 @@ const UNDEFINED =   0
 const OPENING =     1
 const APPOINTMENT = 2
 
-function createTab(nbDays) {
+export function createTab(nbDays) {
     let tab = new Array(nbDays)
     for (let day = 0; day < nbDays; day++) {
         tab[day] = new Array(24 * 2)
@@ -16,7 +16,7 @@ function createTab(nbDays) {
     return tab
 }
 
-async function feedTab(tab, startDate, endDate) {
+export async function feedTab(tab, startDate, endDate) {
     let events = await knex('events')
         .where('ends_at', '<',  new Date(endDate))
         .then(function (events) {
@@ -59,7 +59,7 @@ function affTab(tab) {
     }
 }
 
-function createAvailabilities(tab, startDate) {
+export function createAvailabilities(tab, startDate) {
     let availabilities = []
     let date
     let availability = null
@@ -82,7 +82,9 @@ function createAvailabilities(tab, startDate) {
 
 
 export default async function getAvailabilities(date) {
-  // Implement your algorithm here
+    if (!moment(date).isValid()) {
+        throw ('Invalid parameter date.')
+    }
     const nbDays = 7
     const startDate = moment(date)
     const endDate = moment(date).add(nbDays, 'day')
@@ -90,6 +92,5 @@ export default async function getAvailabilities(date) {
     let tab = createTab(nbDays)
     await feedTab(tab, startDate.clone(), endDate.clone())
     const availabilities = createAvailabilities(tab, startDate)
-    console.log(availabilities)
     return availabilities
 }
