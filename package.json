@@ -6,8 +6,7 @@
   "scripts": {
     "db:migrate": "knex migrate:latest",
     "db:rollback": "knex migrate:rollback",
-    "test": "yarn db:migrate && jest --watchAll",
-    "dev": "nodemon --exec babel-node src/index.js"
+    "test": "yarn db:migrate && jest --watchAll"
   },
   "dependencies": {
     "knex": "^0.14.6",
