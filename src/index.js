@@ -1,5 +1,3 @@
-import getAvailabilities from './getAvailabilities';
-import CreateEvent from './createEvent';
+import getAvailabilities from "./getAvailabilities";
 
-//CreateEvent();
-getAvailabilities(new Date('2014-08-10'));
+getAvailabilities(new Date('2014-08-10'))

@@ -1,143 +1,95 @@
 import moment from 'moment'
 import knex from 'knexClient'
 
-function translateDate(events) {
-  events.forEach(function(event) {
-    event.starts_at = new Date(event.starts_at)
-    event.ends_at = new Date(event.ends_at)
-  })
-  return events
-}
 
-function createTab(daysAvailability) {
-  let tab = new Array(daysAvailability);
-  for (let day = 0; day < daysAvailability; day++) {
-    tab[day] = new Array(24 * 2)
-    for (let hour = 0; hour < 24 * 2; hour++) {
-      tab[day][hour] = 0
+const UNDEFINED =   0
+const OPENING =     1
+const APPOINTMENT = 2
+
+function createTab(nbDays) {
+    let tab = new Array(nbDays)
+    for (let day = 0; day < nbDays; day++) {
+        tab[day] = new Array(24 * 2)
+        for (let hour = 0; hour < 24 * 2; hour++)
+            tab[day][hour] = UNDEFINED
     }
-  }
-  return tab;
+    return tab
 }
 
-function affTab(tab, daysAvailability, dateStart) {
-  for (let day = 0; day < daysAvailability; day++) {
-    console.log(moment(dateStart).add(day, 'day').format("YYYY-MM-DD"))
-    for (let hour = 0; hour < 24 * 2; hour++) {
-      if (tab[day][hour] == true) {
-        var new_date = moment(dateStart).add(day, 'day').add(hour / 2, 'hour').format("YYYY-MM-DD HH:mm");
-        console.log(new_date)
-      }
-    }
-  }
-}
+async function feedTab(tab, startDate, endDate) {
+    let events = await knex('events')
+        .where('ends_at', '<',  new Date(endDate))
+        .then(function (events) {
+            return (events)
+        })
 
-function affAvailabilities(availabilities) {
-  availabilities.forEach(function (availability) {
-    console.log(availability.date)
-    console.log(availability.slots)
-  })
-}
+    events.forEach(function (event) {
+        const day = moment(event.starts_at).day()
+        let startsAt = moment(event.starts_at)
+        let endsAt = moment(event.ends_at)
+        let value = UNDEFINED
 
-function createAvailabilities(tab, daysAvailability, dateStart, res) {
-  let availability
-  for (let day = 0; day < daysAvailability; day++) {
-    for (let hour = 0; hour < 24 * 2; hour++) {
-      if (tab[day][hour] == true) {
-         availability = {date: new Date(dateStart + day * (24 * 60 * 60 * 1000)), slots: []}
-      }
-      while (tab[day][hour] == true) {
-        availability.slots.push(moment(0).hour(hour / 2).minute((hour % 2) * 30).format("HH:mm"))
-        hour++
-        if (tab[day][hour] != true) {
-          hour--
-          res.push(availability)
+        if (event.kind == 'opening')
+            value = OPENING
+        else
+            value = APPOINTMENT
+
+        if (event.weekly_recurring == true ||
+            (event.weekly_recurring != true && startsAt.isSameOrAfter(startDate))) {
+            let hour = startsAt.hour() * 2 + startsAt.minute() / 30
+            while (startsAt.isBefore(endsAt)) {
+                if (value > tab[day][hour])
+                    tab[day][hour] = value
+                startsAt.add(30, 'minute')
+                hour++
+            }
         }
-      }
-    }
-  }
-  return availability
+    })
+    return tab
 }
+
+// This function aff the tab for debug purpose
+function affTab(tab) {
+    for (let day = 0; day < tab.length; day++) {
+        for (let hour = 0; hour < 24 * 2; hour++) {
+            if (tab[day][hour] != 0)
+                console.log(tab[day][hour], day, hour)
+        }
+        console.log('new day', day)
+    }
+}
+
+function createAvailabilities(tab, startDate) {
+    let availabilities = []
+    let date
+    let availability = null
+    let startDay = startDate.day()
+
+    for (let day = 0; day < tab.length; day++) {
+        let index = day + startDay % 7
+        date = startDate.clone().add(day, 'day')
+        date = String(new Date(date))
+        availability = {date: date, slots: []}
+        for (let hour = 0; hour < 24 * 2; hour++) {
+            if (tab[index][hour] == 1) {
+                availability.slots.push(moment(0).hour(hour / 2).minute((hour % 2) * 30).format('H:mm'))
+            }
+        }
+        availabilities.push(availability)
+    }
+    return availabilities;
+}
+
 
 export default async function getAvailabilities(date) {
-
-  // compute last date
-  const daysAvailability = 7
-  const dateStart = moment(date).hour(0).minute(0).second(0).format("YYYY-MM-DD HH:mm:ss")
-  console.log(dateStart)
-  const dateEnd = moment(dateStart).add(daysAvailability, 'day').format("YYYY-MM-DD HH:mm:ss")
-  console.log(dateEnd)
-
-  const tab = createTab(daysAvailability)
-
-  // get all weekly opennings before last date
-  const openings = await knex('events').where({kind: 'opening'}).andWhere('ends_at', '<', dateEnd)
-    .then((events) => {
-      translateDate(events)
-      return events
-    })
-
-  const appointments = await knex('events').where({kind: 'appointment'}).andWhere('ends_at', '<', dateEnd)
-    .then((appointments) => {
-      translateDate(appointments)
-      return appointments
-    })
-
-  const eventsRecuring = await knex('events').where('starts_at', '<', dateStart)
-    .andWhere('weekly_recurring', '=', true)
-    .then((events) => {
-      translateDate(events)
-      return events
-    })
-  const events = await knex('events').where('starts_at', '>', dateStart).where('ends_at', '<', dateEnd)
-    .then((events) => {
-      translateDate(events)
-      return events
-    })
-
-  eventsRecuring.forEach(function(event) {
-    let day = event.starts_at.getDay()
-    let hour = event.starts_at.getHours()
-    let minute = event.starts_at.getMinutes()
-
-    if (event.kind == 'opening') {
-      tab[day][hour * 2 + minute / 30] = true
-    }
-  })
-  events.forEach(function(event) {
-    let day = event.starts_at.getDay()
-    let hour = event.starts_at.getHours()
-    let minute = event.starts_at.getMinutes()
-
-    if (event.kind == 'opening') {
-      tab[day][hour * 2 + minute / 30] = true
-    }
-  })
-  eventsRecuring.forEach(function(event) {
-    let day = event.starts_at.getDay()
-    let hour = event.starts_at.getHours()
-    let minute = event.starts_at.getMinutes()
-
-    if (event.kind == 'appointment') {
-      tab[day][hour * 2 + minute / 30] = false
-    }
-  })
-  events.forEach(function(event) {
-    let day = event.starts_at.getDay()
-    let hour = event.starts_at.getHours()
-    let minute = event.starts_at.getMinutes()
-
-    if (event.kind == 'appointment') {
-      tab[day][hour * 2 + minute / 30] = false
-    }
-  })
-
-  //affTab(tab, daysAvailability, dateStart)
-  let res = new Array()
-  createAvailabilities(tab, daysAvailability, dateStart, res)
-  console.log('finished')
-  console.log(res)
-  affAvailabilities(res)
   // Implement your algorithm here
-  // get all appointments bewteen date and last date  // Implement your algorithm here
+    const nbDays = 7
+    const startDate = moment(date)
+    const endDate = moment(date).add(nbDays, 'day')
+
+    let tab = createTab(nbDays)
+    await feedTab(tab, startDate.clone(), endDate.clone())
+    const availabilities = createAvailabilities(tab, startDate)
+    console.log(availabilities)
+    return availabilities
 }

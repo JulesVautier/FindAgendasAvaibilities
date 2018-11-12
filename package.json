@@ -4,23 +4,20 @@
   "version": "0.0.0",
   "description": "Doctolib developer test.",
   "scripts": {
-    "db:seed": "knex seed:run event_01.js",
     "db:migrate": "knex migrate:latest",
     "db:rollback": "knex migrate:rollback",
     "test": "yarn db:migrate && jest --watchAll",
-    "dev": "yarn db:migrate && yarn db:seed && nodemon --exec babel-node --presets env,stage-2 src/index.js"
+    "dev": "nodemon --exec babel-node src/index.js"
   },
   "dependencies": {
     "knex": "^0.14.6",
     "moment": "^2.22.1",
-    "sqlite3": "^4.0.2"
+    "sqlite3": "^4.0.0"
   },
   "devDependencies": {
     "babel-cli": "^6.26.0",
     "babel-plugin-module-resolver": "^3.1.1",
     "babel-preset-env": "^1.7.0",
-    "babel-preset-stage-2": "^6.24.1",
-    "jest": "^23.1.0",
-    "nodemon": "^1.18.4"
+    "jest": "^23.1.0"
   }
 }
